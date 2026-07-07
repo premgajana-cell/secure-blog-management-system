@@ -2,30 +2,53 @@
 session_start();
 include("../config/db.php");
 
+$message = "";
+
 if(isset($_POST['login']))
 {
-    $username = $_POST['username'];
-    $password = $_POST['password'];
+    $username = trim($_POST['username']);
+    $password = trim($_POST['password']);
 
-    $result = mysqli_query($conn,
-        "SELECT * FROM users WHERE username='$username'"
-    );
-
-    $user = mysqli_fetch_assoc($result);
-
-    if($user && password_verify($password, $user['password']))
+    // Form Validation
+    if(empty($username) || empty($password))
     {
-        $_SESSION['user'] = $username;
-        header("Location: ../posts/read.php");
-        exit();
+        $message = "All fields are required";
     }
     else
     {
-        echo "<script>alert('Invalid Login');</script>";
+        // Prepared Statement
+        $stmt = $conn->prepare("SELECT * FROM users WHERE username = ?");
+        $stmt->bind_param("s", $username);
+        $stmt->execute();
+
+        $result = $stmt->get_result();
+
+        if($result->num_rows > 0)
+        {
+            $user = $result->fetch_assoc();
+
+            if(password_verify($password, $user['password']))
+            {
+                $_SESSION['user'] = $user['username'];
+                $_SESSION['role'] = $user['role'];
+
+                header("Location: ../posts/read.php");
+                exit();
+            }
+            else
+            {
+                $message = "Invalid username or password";
+            }
+        }
+        else
+        {
+            $message = "Invalid username or password";
+        }
+
+        $stmt->close();
     }
 }
 ?>
-
 <!DOCTYPE html>
 <html>
 <head>
@@ -119,6 +142,18 @@ a {
 
     <div class="right-panel">
         <h2>Login</h2>
+        <?php if(!empty($message)) { ?>
+    <div style="
+        background:#ffe5e5;
+        color:#d8000c;
+        padding:12px;
+        margin-bottom:15px;
+        border-radius:8px;
+        font-weight:bold;
+    ">
+        <?php echo htmlspecialchars($message); ?>
+    </div>
+<?php } ?>
 
         <form method="POST">
             <input type="text" name="username" placeholder="Username" required>

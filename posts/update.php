@@ -1,25 +1,67 @@
 <?php
+session_start();
 include("../config/db.php");
+
+$message = "";
+
+// Allow only admin users
+if (!isset($_SESSION['role']) || $_SESSION['role'] != "admin") {
+    die("Access Denied");
+}
+
+// Validate ID
+if(!isset($_GET['id']) || !is_numeric($_GET['id']))
+{
+    die("Invalid Post ID");
+}
 
 $id = $_GET['id'];
 
-$result = mysqli_query($conn, "SELECT * FROM posts WHERE id=$id");
-$row = mysqli_fetch_assoc($result);
+// Get existing post using prepared statement
+$stmt = $conn->prepare("SELECT * FROM posts WHERE id = ?");
+$stmt->bind_param("i", $id);
+$stmt->execute();
+
+$result = $stmt->get_result();
+$row = $result->fetch_assoc();
+
+if(!$row)
+{
+    die("Post not found");
+}
 
 if(isset($_POST['update']))
 {
-    $title = $_POST['title'];
-    $content = $_POST['content'];
+    $title = trim($_POST['title']);
+    $content = trim($_POST['content']);
 
-    mysqli_query($conn,
-        "UPDATE posts
-         SET title='$title', content='$content'
-         WHERE id=$id");
+    // Form Validation
+    if(empty($title) || empty($content))
+    {
+        $message = "All fields are required";
+    }
+    else
+    {
+        // Update using prepared statement
+        $update = $conn->prepare("UPDATE posts SET title=?, content=? WHERE id=?");
+        $update->bind_param("ssi", $title, $content, $id);
 
-    header("Location: read.php");
+        if($update->execute())
+        {
+            header("Location: read.php");
+            exit();
+        }
+        else
+        {
+            $message = "Unable to update post";
+        }
+
+        $update->close();
+    }
 }
-?>
 
+$stmt->close();
+?>
 <!DOCTYPE html>
 <html>
 <head>
@@ -104,12 +146,24 @@ if(isset($_POST['update']))
 
         <h1>Update Post</h1>
         <p>Edit your post details below</p>
+        <?php if(!empty($message)) { ?>
+<div style="
+    background:#ffe5e5;
+    color:#d8000c;
+    padding:12px;
+    margin-bottom:15px;
+    border-radius:8px;
+    font-weight:bold;
+">
+    <?php echo htmlspecialchars($message); ?>
+</div>
+<?php } ?>
 
         <form method="POST">
             <input type="text" name="title"
-                value="<?php echo $row['title']; ?>" required>
+                value="<?php echo htmlspecialchars($row['title']); ?>" required>
 
-            <textarea name="content" required><?php echo $row['content']; ?></textarea>
+            <textarea name="content" required><?php echo htmlspecialchars($row['content']); ?></textarea>
 
             <button name="update">Update Post</button>
         </form>

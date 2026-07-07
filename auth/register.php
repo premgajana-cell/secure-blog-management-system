@@ -1,19 +1,61 @@
 <?php
 include("../config/db.php");
 
+$message = "";
+
 if(isset($_POST['register']))
 {
-    $username = $_POST['username'];
-    $password = password_hash($_POST['password'], PASSWORD_DEFAULT);
+    $username = trim($_POST['username']);
+    $password = trim($_POST['password']);
 
-    mysqli_query($conn,
-        "INSERT INTO users(username,password)
-         VALUES('$username','$password')");
+    if(empty($username) || empty($password))
+    {
+        $message = "All fields are required";
+    }
+    elseif(strlen($password) < 6)
+    {
+        $message = "Password must be at least 6 characters";
+    }
+    else
+    {
+        // Check if username already exists
+        $check = $conn->prepare("SELECT id FROM users WHERE username = ?");
+        $check->bind_param("s", $username);
+        $check->execute();
+        $check->store_result();
 
-    echo "<script>alert('Registration Successful');</script>";
+        if($check->num_rows > 0)
+        {
+            $message = "Username already exists";
+        }
+        else
+        {
+            $passwordHash = password_hash($password, PASSWORD_DEFAULT);
+            $role = "user";
+
+            $stmt = $conn->prepare("INSERT INTO users(username, password, role) VALUES(?, ?, ?)");
+            $stmt->bind_param("sss", $username, $passwordHash, $role);
+
+            if($stmt->execute())
+            {
+                echo "<script>
+                        alert('Registration Successful');
+                        window.location='login.php';
+                      </script>";
+                exit();
+            }
+            else
+            {
+                $message = "Registration failed";
+            }
+
+            $stmt->close();
+        }
+
+        $check->close();
+    }
 }
 ?>
-
 <!DOCTYPE html>
 <html>
 <head>
@@ -95,6 +137,11 @@ if(isset($_POST['register']))
 
         <h1>Create Account</h1>
         <p>Register to access your CRUD Application</p>
+        <?php if(!empty($message)) { ?>
+    <p style="color: yellow; font-weight: bold; margin-bottom: 15px;">
+        <?php echo $message; ?>
+    </p>
+<?php } ?>
 
         <form method="POST">
             <input type="text" name="username" placeholder="Enter Username" required>

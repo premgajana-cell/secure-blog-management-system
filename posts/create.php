@@ -1,19 +1,44 @@
 <?php
+session_start();
 include("../config/db.php");
+
+$message = "";
+
+// Allow only admin users
+if (!isset($_SESSION['role']) || $_SESSION['role'] != "admin") {
+    die("Access Denied");
+}
 
 if(isset($_POST['save']))
 {
-    $title = $_POST['title'];
-    $content = $_POST['content'];
+    $title = trim($_POST['title']);
+    $content = trim($_POST['content']);
 
-    mysqli_query($conn,
-        "INSERT INTO posts(title, content)
-         VALUES('$title', '$content')");
+    // Form Validation
+    if(empty($title) || empty($content))
+    {
+        $message = "All fields are required";
+    }
+    else
+    {
+        // Prepared Statement
+        $stmt = $conn->prepare("INSERT INTO posts(title, content) VALUES(?, ?)");
+        $stmt->bind_param("ss", $title, $content);
 
-    header("Location: read.php");
+        if($stmt->execute())
+        {
+            header("Location: read.php");
+            exit();
+        }
+        else
+        {
+            $message = "Unable to save post";
+        }
+
+        $stmt->close();
+    }
 }
 ?>
-
 <!DOCTYPE html>
 <html>
 <head>
@@ -90,6 +115,18 @@ if(isset($_POST['save']))
     <div class="create-card">
         <h1>Create New Post</h1>
         <p>Add your title and content below</p>
+        <?php if(!empty($message)) { ?>
+    <div style="
+        background:#ffe5e5;
+        color:#d8000c;
+        padding:12px;
+        margin-bottom:15px;
+        border-radius:8px;
+        font-weight:bold;
+    ">
+        <?php echo htmlspecialchars($message); ?>
+    </div>
+<?php } ?>
 
         <form method="POST">
             <input type="text" name="title" placeholder="Enter Post Title" required>
